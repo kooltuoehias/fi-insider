@@ -1,0 +1,32 @@
+name: Daily Scraper
+
+on:
+  schedule:
+    # 15:45 UTC = 17:45 CEST (summer) / 16:45 CET (winter)
+    # Runs after Swedish market close (17:30 local) to allow FI data propagation
+    - cron: '45 15 * * 1-5' # Weekdays only
+  workflow_dispatch: # Manual trigger button in GitHub UI
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install & Run Scraper
+        working-directory: scraper
+        run: |
+          npm ci
+          node index.js
+
+      - name: Commit Updated Data
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "data: daily scraper sync"
+          file_pattern: >-
+            frontend/public/data/transactions.json
+            scraper/scraper_state.json

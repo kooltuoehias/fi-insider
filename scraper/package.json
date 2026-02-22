@@ -1,0 +1,15 @@
+{
+    "name": "fi-scraper",
+    "version": "1.0.0",
+    "description": "Scraper for Swedish Insider Transactions",
+    "main": "index.js",
+    "scripts": {
+        "start": "node index.js"
+    },
+    "dependencies": {
+        "axios": "^1.6.0",
+        "cheerio": "^1.0.0-rc.12",
+        "fs-extra": "^11.1.0"
+    },
+    "type": "module"
+}
