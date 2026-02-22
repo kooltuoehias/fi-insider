@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Transaction, loadTransactions } from './types';
-import { format } from 'date-fns';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { Search, ArrowUpDown, Download, CircleDot, TrendingUp, Building2, HelpCircle } from 'lucide-react';
+import { Search, ArrowUpDown, Download, TrendingUp, Building2 } from 'lucide-react';
 
 function App() {
     const [data, setData] = useState<Transaction[]>([]);
