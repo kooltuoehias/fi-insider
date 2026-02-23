@@ -1,5 +1,4 @@
-// This file will naturally be replaced by the real data.json when the user runs the scraper.
-// But for now, we provide a types definition and a loader.
+import { SignalGrade, getSignalInfo } from './analysis';
 
 export interface Transaction {
     publicationDate: string;
@@ -20,6 +19,7 @@ export interface Transaction {
     details: string;
     totalValue: number;
     marketSegment?: string;
+    signalGrade?: SignalGrade;
 }
 
 export const loadTransactions = async (): Promise<Transaction[]> => {
@@ -52,7 +52,7 @@ export const loadTransactions = async (): Promise<Transaction[]> => {
         const stringSimilarity = await import('string-similarity');
         const memoizedSegments = new Map<string, string>();
 
-        return data.map((t: any) => {
+        const enriched: Transaction[] = data.map((t: any) => {
             // 1. Check if we've already calculated the segment for this exact issuer name
             if (memoizedSegments.has(t.issuer)) {
                 return {
@@ -115,6 +115,13 @@ export const loadTransactions = async (): Promise<Transaction[]> => {
                 marketSegment
             };
         });
+
+        // Assign signal grades
+        for (const t of enriched) {
+            t.signalGrade = getSignalInfo(t).grade;
+        }
+
+        return enriched;
     } catch (e) {
         console.warn("Could not load transactions, using empty list or fallback.", e);
         return [];
