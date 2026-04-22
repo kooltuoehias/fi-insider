@@ -102,6 +102,7 @@ export function detectClusters(transactions: Transaction[], windowDays: number =
     }
 
     const clusters: InsiderCluster[] = [];
+    const today = new Date();
 
     for (const [issuer, txns] of byIssuer) {
         // Sort by transaction date
@@ -112,9 +113,8 @@ export function detectClusters(transactions: Transaction[], windowDays: number =
 
         if (sorted.length < 2) continue;
 
-        // Find unique persons who bought within the window (from most recent date)
-        const mostRecent = sorted[0]._parsed!;
-        const inWindow = sorted.filter(t => daysBetween(t._parsed!, mostRecent) <= windowDays);
+        // Find unique persons who bought within the window (relative to today)
+        const inWindow = sorted.filter(t => daysBetween(t._parsed!, today) <= windowDays);
 
         // Group by person within the window
         const personMap = new Map<string, { position: string; totalValue: number; count: number; currency: string }>();
@@ -175,4 +175,104 @@ export function detectClusters(transactions: Transaction[], windowDays: number =
     clusters.sort((a, b) => b.combinedValue - a.combinedValue);
 
     return clusters;
+}
+
+// ─── CEO + CFO Dual Buy Detection ───────────────────────────────
+
+export interface CEOCFOAlert {
+    issuer: string;
+    ceo: { person: string; totalValue: number; transactionCount: number; position: string };
+    cfo: { person: string; totalValue: number; transactionCount: number; position: string };
+    combinedValue: number;
+    dateRange: string;
+    marketSegment?: string;
+}
+
+function isCEORole(position: string): boolean {
+    return position.includes('Chief Executive Officer');
+}
+
+function isCFORole(position: string): boolean {
+    return position.includes('Chief Financial Officer');
+}
+
+export function detectCEOCFOBuys(transactions: Transaction[], windowDays: number = 90): CEOCFOAlert[] {
+    const today = new Date();
+
+    // Only acquisitions within the time window
+    const recent = transactions.filter(t => {
+        if (!t.nature.includes('Acquisition')) return false;
+        const d = parseDate(t.transactionDate);
+        if (!d) return false;
+        return daysBetween(d, today) <= windowDays;
+    });
+
+    // Group by issuer
+    const byIssuer = new Map<string, Transaction[]>();
+    for (const t of recent) {
+        if (!byIssuer.has(t.issuer)) byIssuer.set(t.issuer, []);
+        byIssuer.get(t.issuer)!.push(t);
+    }
+
+    const alerts: CEOCFOAlert[] = [];
+
+    for (const [issuer, txns] of byIssuer) {
+        const ceoBuys = txns.filter(t => isCEORole(t.position));
+        const cfoBuys = txns.filter(t => isCFORole(t.position));
+
+        if (ceoBuys.length === 0 || cfoBuys.length === 0) continue;
+
+        // Aggregate by person
+        const aggregate = (buys: Transaction[]) => {
+            const map = new Map<string, { totalValue: number; count: number; position: string }>();
+            for (const t of buys) {
+                const ex = map.get(t.person);
+                if (ex) { ex.totalValue += t.totalValue || 0; ex.count++; }
+                else map.set(t.person, { totalValue: t.totalValue || 0, count: 1, position: t.position });
+            }
+            return map;
+        };
+
+        const ceoMap = aggregate(ceoBuys);
+        const cfoMap = aggregate(cfoBuys);
+
+        // Find a CEO and CFO who are different people
+        // (a person holding both roles simultaneously doesn't count)
+        let ceoPerson: string | null = null;
+        let cfoPerson: string | null = null;
+
+        for (const person of ceoMap.keys()) {
+            if (!isCFORole(ceoMap.get(person)!.position)) { ceoPerson = person; break; }
+        }
+        for (const person of cfoMap.keys()) {
+            if (!isCEORole(cfoMap.get(person)!.position)) { cfoPerson = person; break; }
+        }
+
+        if (!ceoPerson || !cfoPerson || ceoPerson === cfoPerson) continue;
+
+        const ceoInfo = ceoMap.get(ceoPerson)!;
+        const cfoInfo = cfoMap.get(cfoPerson)!;
+
+        const allDates = [...ceoBuys, ...cfoBuys]
+            .map(t => parseDate(t.transactionDate))
+            .filter((d): d is Date => d !== null)
+            .sort((a, b) => a.getTime() - b.getTime());
+
+        const fmt = (d: Date) => d.toISOString().split('T')[0];
+        const dateRange = allDates.length === 0 ? '' :
+            fmt(allDates[0]) === fmt(allDates[allDates.length - 1])
+                ? fmt(allDates[0])
+                : `${fmt(allDates[0])} → ${fmt(allDates[allDates.length - 1])}`;
+
+        alerts.push({
+            issuer,
+            ceo: { person: ceoPerson, totalValue: ceoInfo.totalValue, transactionCount: ceoInfo.count, position: ceoInfo.position },
+            cfo: { person: cfoPerson, totalValue: cfoInfo.totalValue, transactionCount: cfoInfo.count, position: cfoInfo.position },
+            combinedValue: ceoInfo.totalValue + cfoInfo.totalValue,
+            dateRange,
+            marketSegment: txns[0].marketSegment,
+        });
+    }
+
+    return alerts.sort((a, b) => b.combinedValue - a.combinedValue);
 }

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Transaction, loadTransactions } from './types';
-import { getSignalInfo, detectClusters, InsiderCluster } from './analysis';
+import { getSignalInfo, detectClusters, InsiderCluster, detectCEOCFOBuys, CEOCFOAlert } from './analysis';
 import { Search, ArrowUpDown, Download, TrendingUp, Building2, AlertTriangle, Users } from 'lucide-react';
 
 function App() {
@@ -22,6 +22,11 @@ function App() {
     // Cluster detection
     const clusters = React.useMemo(() => {
         return detectClusters(data, 30);
+    }, [data]);
+
+    // CEO + CFO dual buy detection
+    const ceoCfoAlerts = React.useMemo(() => {
+        return detectCEOCFOBuys(data, 90);
     }, [data]);
 
     // Signal grade counts
@@ -136,6 +141,24 @@ function App() {
                     </button>
                 </div>
             </header>
+
+            {/* CEO + CFO Dual Buy Panel */}
+            {ceoCfoAlerts.length > 0 && (
+                <section className="mb-4">
+                    <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/5 text-card-foreground shadow-sm p-6">
+                        <div className="flex items-center gap-2 mb-4">
+                            <span className="text-xl">👑</span>
+                            <h3 className="text-lg font-semibold text-yellow-300">CEO + CFO Both Buying (90d)</h3>
+                            <span className="ml-auto text-xs text-muted-foreground">{ceoCfoAlerts.length} {ceoCfoAlerts.length === 1 ? 'company' : 'companies'}</span>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                            {ceoCfoAlerts.map((alert, idx) => (
+                                <CEOCFOCard key={idx} alert={alert} />
+                            ))}
+                        </div>
+                    </div>
+                </section>
+            )}
 
             {/* Signal Stats + Cluster Panel */}
             <section className="mb-8 grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -306,6 +329,41 @@ function SignalStatButton({ icon, label, count, colorClass, active, onClick }: {
                 <p className="text-xs text-muted-foreground">{label}</p>
             </div>
         </button>
+    );
+}
+
+function CEOCFOCard({ alert }: { alert: CEOCFOAlert }) {
+    const formatValue = (v: number) => {
+        if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`;
+        if (v >= 1_000) return `${(v / 1_000).toFixed(0)}k`;
+        return v.toFixed(0);
+    };
+
+    return (
+        <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/8 p-3">
+            <div className="flex items-center justify-between mb-2">
+                <span className="font-semibold text-sm text-yellow-200 truncate max-w-[160px]" title={alert.issuer}>
+                    {alert.issuer}
+                </span>
+                <span className="text-xs text-muted-foreground ml-1 shrink-0">{alert.dateRange}</span>
+            </div>
+            <div className="space-y-1.5">
+                <div className="flex items-center justify-between text-xs">
+                    <span className="text-yellow-400 font-medium w-8 shrink-0">CEO</span>
+                    <span className="text-muted-foreground truncate flex-1 mx-1" title={alert.ceo.person}>{alert.ceo.person}</span>
+                    <span className="font-mono text-yellow-300 shrink-0">{formatValue(alert.ceo.totalValue)} SEK</span>
+                </div>
+                <div className="flex items-center justify-between text-xs">
+                    <span className="text-yellow-400 font-medium w-8 shrink-0">CFO</span>
+                    <span className="text-muted-foreground truncate flex-1 mx-1" title={alert.cfo.person}>{alert.cfo.person}</span>
+                    <span className="font-mono text-yellow-300 shrink-0">{formatValue(alert.cfo.totalValue)} SEK</span>
+                </div>
+            </div>
+            <div className="mt-2 pt-2 border-t border-yellow-500/15 flex justify-between text-xs">
+                <span className="text-muted-foreground">Combined</span>
+                <span className="font-semibold text-yellow-200">Σ {formatValue(alert.combinedValue)} SEK</span>
+            </div>
+        </div>
     );
 }
 
