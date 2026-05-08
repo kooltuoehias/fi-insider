@@ -20,16 +20,26 @@ jobs:
         with:
           node-version: 20
 
-      - name: Install & Run Scraper
+      - name: Install dependencies
         working-directory: scraper
-        run: |
-          npm ci
-          node index.js
+        run: npm ci
+
+      - name: Merge year files → transactions.json
+        working-directory: scraper
+        run: node merge.js
+
+      - name: Run scraper (incremental)
+        working-directory: scraper
+        run: node index.js
+
+      - name: Split transactions.json → per-year files
+        working-directory: scraper
+        run: node split.js
 
       - name: Commit Updated Data
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: "data: daily scraper sync"
           file_pattern: >-
-            frontend/public/data/transactions.json
+            frontend/public/data/transactions_*.json
             scraper/scraper_state.json

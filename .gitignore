@@ -32,3 +32,5 @@ cache/
 
 # Large data files not needed in repo
 frontend/public/data/history.json
+# Monolithic file replaced by per-year files (transactions_YYYY.json)
+frontend/public/data/transactions.json

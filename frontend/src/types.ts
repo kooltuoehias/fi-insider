@@ -33,19 +33,39 @@ function makeTxKey(t: Pick<Transaction, 'isin' | 'publicationDate' | 'person' | 
     return `${t.isin}|${t.publicationDate}|${t.person}|${t.volume}|${t.price}`;
 }
 
+function ddmmyyyyToMs(d: string): number {
+    const [dd, mm, yy] = (d || '').split('/')
+    return new Date(+yy, +mm - 1, +dd).getTime()
+}
+
+const START_YEAR = 2016
+
 export const loadTransactions = async (): Promise<Transaction[]> => {
     try {
-        const [txResponse] = await Promise.all([
-            fetch('/data/transactions.json'),
-            loadIsinData(),
-        ]);
+        const currentYear = new Date().getFullYear()
+        const years = Array.from({ length: currentYear - START_YEAR + 1 }, (_, i) => START_YEAR + i)
 
-        if (!txResponse.ok) throw new Error('Transaction data not found');
+        const [yearResults] = await Promise.all([
+            Promise.allSettled(years.map(y => fetch(`/data/transactions_${y}.json`))),
+            loadIsinData(),
+        ])
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const data = (await txResponse.json()) as any[];
+        const allData: any[] = []
+        for (const result of yearResults) {
+            if (result.status === 'fulfilled' && result.value.ok) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const yearData = await result.value.json() as any[]
+                allData.push(...yearData)
+            }
+        }
 
-        const enriched: Transaction[] = data.map((t) => {
+        if (allData.length === 0) throw new Error('No transaction data found')
+
+        // Sort newest first
+        allData.sort((a, b) => ddmmyyyyToMs(b.publicationDate) - ddmmyyyyToMs(a.publicationDate))
+
+        const enriched: Transaction[] = allData.map((t) => {
             const info = lookupIsin(t.isin || '');
             let marketSegment: string;
             switch (info.cap_tier) {

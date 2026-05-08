@@ -5,7 +5,9 @@
     "main": "index.js",
     "scripts": {
         "start": "node index.js",
-        "backfill": "node backfill.js"
+        "backfill": "node backfill.js",
+        "split": "node split.js",
+        "merge": "node merge.js"
     },
     "dependencies": {
         "axios": "^1.6.0",
