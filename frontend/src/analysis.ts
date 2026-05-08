@@ -93,18 +93,18 @@ export function detectClusters(transactions: Transaction[], windowDays: number =
     // Only look at Acquisitions
     const acquisitions = transactions.filter(t => t.nature.includes('Acquisition'));
 
-    // Group by issuer
-    const byIssuer = new Map<string, Transaction[]>();
+    // Group by isin (stable identity across issuer name drift)
+    const byIsin = new Map<string, { txns: Transaction[]; displayName: string }>();
     for (const t of acquisitions) {
-        const key = t.issuer;
-        if (!byIssuer.has(key)) byIssuer.set(key, []);
-        byIssuer.get(key)!.push(t);
+        const key = t.isin || t.issuer;
+        if (!byIsin.has(key)) byIsin.set(key, { txns: [], displayName: t.issuer });
+        byIsin.get(key)!.txns.push(t);
     }
 
     const clusters: InsiderCluster[] = [];
     const today = new Date();
 
-    for (const [issuer, txns] of byIssuer) {
+    for (const [, { txns, displayName: issuer }] of byIsin) {
         // Sort by transaction date
         const sorted = txns
             .map(t => ({ ...t, _parsed: parseDate(t.transactionDate) }))
@@ -207,16 +207,18 @@ export function detectCEOCFOBuys(transactions: Transaction[], windowDays: number
         return daysBetween(d, today) <= windowDays;
     });
 
-    // Group by issuer
-    const byIssuer = new Map<string, Transaction[]>();
+    // Group by isin (stable identity across issuer name drift)
+    const byIsin = new Map<string, Transaction[]>();
     for (const t of recent) {
-        if (!byIssuer.has(t.issuer)) byIssuer.set(t.issuer, []);
-        byIssuer.get(t.issuer)!.push(t);
+        const key = t.isin || t.issuer;
+        if (!byIsin.has(key)) byIsin.set(key, []);
+        byIsin.get(key)!.push(t);
     }
 
     const alerts: CEOCFOAlert[] = [];
 
-    for (const [issuer, txns] of byIssuer) {
+    for (const [, txns] of byIsin) {
+        const issuer = txns[0].issuer;
         const ceoBuys = txns.filter(t => isCEORole(t.position));
         const cfoBuys = txns.filter(t => isCFORole(t.position));
 
