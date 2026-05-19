@@ -1,6 +1,24 @@
 # FI Insider
 
-A complete system for scraping, analyzing, and visualizing Swedish public insider transactions from the FI (Finansinspektionen) registry.
+> Swedish insider trading monitor — tracks public filings from Finansinspektionen, graded by signal strength.
+
+[![CI](https://github.com/kooltuoehias/fi-insider/actions/workflows/ci.yml/badge.svg)](https://github.com/kooltuoehias/fi-insider/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/kooltuoehias/fi-insider/branch/main/graph/badge.svg)](https://codecov.io/gh/kooltuoehias/fi-insider)
+[![Last Commit](https://img.shields.io/github/last-commit/kooltuoehias/fi-insider)](https://github.com/kooltuoehias/fi-insider/commits/main)
+![React](https://img.shields.io/badge/React_18-61DAFB?logo=react&logoColor=black)
+![TypeScript](https://img.shields.io/badge/TypeScript_5-3178C6?logo=typescript&logoColor=white)
+![Vite](https://img.shields.io/badge/Vite_5-646CFF?logo=vite&logoColor=white)
+
+Data is scraped daily from the [FI public registry](https://marknadssok.fi.se/Publiceringsklient) and auto-deployed via Cloudflare Pages. No backend — all analysis runs client-side.
+
+## Features
+
+- **Signal Grading** — acquisitions ranked Table-Pounding / Conviction / Watch / Token by SEK value
+- **Cluster Detection** — flags stocks where 2+ insiders buy within 30 days
+- **CEO + CFO Alerts** — when both C-suite officers buy within 90 days
+- **Market Segments** — Large / Mid / Small Cap via ISIN lookup with Yahoo Finance market caps
+- **Backtested Tags** — Large Cap CFO buys (79.8% win rate), Huge Single (≥10M SEK), Chairman Warning (inverse signal)
+- **CSV Export** — download any filtered view
 
 ## Architecture
 
@@ -8,59 +26,26 @@ A complete system for scraping, analyzing, and visualizing Swedish public inside
 fi-insider/
 ├── scraper/       # Node.js scraper → outputs to frontend/public/data/
 ├── frontend/      # React + Vite + Tailwind CSS dashboard
-├── backend/       # Cloudflare Worker config (future API use)
 └── .github/       # GitHub Actions for automated daily scraping
 ```
 
-### Data Flow
-
-1. **Scraper** fetches transactions from FI and writes `transactions.json` directly into `frontend/public/data/`
-2. **GitHub Actions** runs the scraper daily at 15:45 UTC (after Swedish market close) and auto-commits updated data
-3. **Cloudflare Pages** auto-deploys the frontend on every commit, serving the latest data globally
-4. **Cloudflare Access** gates the site behind email OTP (only whitelisted users)
+**Data flow:** Scraper fetches HTML from `marknadssok.fi.se`, parses with cheerio, writes per-year JSON files. GitHub Actions runs daily at 15:45 UTC. Cloudflare Pages auto-deploys on every commit.
 
 ## Local Development
 
-### 1. Scraper
 ```bash
-cd scraper
-npm install
-npm start
-```
-The scraper outputs directly to `frontend/public/data/transactions.json` — no manual copy needed.
+# Scraper
+cd scraper && npm install && npm start
 
-### 2. Frontend
+# Frontend
+cd frontend && yarn install && yarn dev
+# → http://localhost:6175
+```
+
+## Tests
+
 ```bash
 cd frontend
-yarn install
-yarn dev
+yarn test             # run once
+yarn test:coverage    # with coverage report
 ```
-The dashboard runs at `http://localhost:6175`.
-
-## Deployment (Cloudflare Free Tier)
-
-### Frontend → Cloudflare Pages
-1. Go to **Cloudflare Dashboard → Pages → Create a project**
-2. Connect your GitHub repository
-3. Set build command: `cd frontend && yarn install && yarn build`
-4. Set output directory: `frontend/dist`
-5. Deploy — site will be available at `<project-name>.pages.dev`
-
-### Anti-Abuse → Cloudflare Access
-1. Go to **Cloudflare Dashboard → Zero Trust → Access → Applications**
-2. Add a Self-hosted Application with your Pages URL
-3. Create an Access Policy: Allow → Emails → whitelist your email addresses
-4. Auth method: One-time PIN (email OTP)
-
-### Scraper Automation → GitHub Actions
-The `.github/workflows/scrape.yml` workflow runs automatically:
-- **Schedule:** Weekdays at 15:45 UTC (≈17:45 CEST / 16:45 CET)
-- **Manual trigger:** Click "Run workflow" in GitHub → Actions tab
-- Each run scrapes FI, commits updated `transactions.json`, and triggers a Cloudflare Pages rebuild
-
-## Features
-- **Search & Filter:** Find transactions by company, person, instrument, or role
-- **Market Segments:** Fuzzy-matched Large Cap / Mid Cap icons via `lc.log` and `mc.log` lists
-- **Calculated Insights:** Auto-computed "Total Value" (volume × price) for spotting significant movements
-- **Export Data:** Download your current filtered view as CSV
-- **Pagination:** Navigate through large datasets with page controls
