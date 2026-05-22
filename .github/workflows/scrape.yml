@@ -36,6 +36,15 @@ jobs:
         working-directory: scraper
         run: node split.js
 
+      - name: Push metrics to Grafana Cloud
+        working-directory: scraper
+        continue-on-error: true
+        env:
+          GRAFANA_REMOTE_WRITE_URL: ${{ secrets.GRAFANA_REMOTE_WRITE_URL }}
+          GRAFANA_METRICS_USER: ${{ secrets.GRAFANA_METRICS_USER }}
+          GRAFANA_METRICS_PASSWORD: ${{ secrets.GRAFANA_METRICS_PASSWORD }}
+        run: node push-metrics.js
+
       - name: Commit Updated Data
         uses: stefanzweifel/git-auto-commit-action@v5
         with:

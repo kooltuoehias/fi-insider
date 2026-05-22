@@ -1,0 +1,33 @@
+name: Fetch Sector Data
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 10 1 * *' # First day of each month at 10:00 UTC
+
+permissions:
+  contents: write
+
+jobs:
+  fetch-sectors:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        working-directory: scraper
+        run: npm ci
+
+      - name: Fetch sector classifications
+        working-directory: scraper
+        run: node fetch-sectors.js
+
+      - name: Commit sector data
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "data: refresh sector classifications"
+          file_pattern: frontend/public/data/ticker_sector.json
